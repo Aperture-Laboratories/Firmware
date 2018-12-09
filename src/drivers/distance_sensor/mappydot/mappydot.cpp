@@ -200,7 +200,8 @@ private:
 
 	// uint8_t arraySize = 12; /** Max mappydots on single bus **/
 
-	std::vector<uint8_t> 	_sensor_addresses;
+	//std::vector<uint8_t> 	_sensor_addresses;
+    std::uint8_t _sensor_addresses[MAPPYDOT_MAX_RANGEFINDERS];
 
 	/**
 	* Test whether the device supported by the driver is present at a
@@ -281,69 +282,81 @@ Mappydot::~Mappydot()
 
 int
 Mappydot::init() {
-	int ret = PX4_ERROR;
+    int ret = PX4_ERROR;
 
-	/* do I2C init (and probe) first */
-	set_device_address(MAPPYDOT_BASEADDR);
+    /* do I2C init (and probe) first */
+    set_device_address(MAPPYDOT_BASEADDR);
 
-	if (I2C::init() != OK) {
-		return ret;
-	}
+    if (I2C::init() != OK) {
+        return ret;
+    }
 
-	/* allocate basic report buffers */
-	_reports = new ringbuffer::RingBuffer(2, sizeof(obstacle_distance_s));
+    /* allocate basic report buffers */
+    _reports = new ringbuffer::RingBuffer(2, sizeof(obstacle_distance_s));
 
-	if (_reports == nullptr) {
-		return ret;
-	}
+    if (_reports == nullptr) {
+        return ret;
+    }
 
-	_class_instance = register_class_devname(RANGE_FINDER_BASE_DEVICE_PATH); // TODO
+    _class_instance = register_class_devname(RANGE_FINDER_BASE_DEVICE_PATH); // TODO
 
-	/* get a publish handle on the obstacle distance topic */
-	struct obstacle_distance_s obstacle_report = {};
+    /* get a publish handle on the obstacle distance topic */
+    struct obstacle_distance_s obstacle_report = {};
 
-	_obstacle_distance_topic = orb_advertise_multi(ORB_ID(obstacle_distance), &obstacle_report,
-												   &_orb_class_instance, ORB_PRIO_LOW);
+    _obstacle_distance_topic = orb_advertise_multi(ORB_ID(obstacle_distance), &obstacle_report,
+                                                   &_orb_class_instance, ORB_PRIO_LOW);
 
-	if (_obstacle_distance_topic == nullptr) {
-		PX4_ERR("failed to create obstacle_distance object");
-	}
+    if (_obstacle_distance_topic == nullptr) {
+        PX4_ERR("failed to create obstacle_distance object");
+    }
 
-	// XXX we should find out why we need to wait 200 ms here
-	// usleep(200000);
+    // XXX we should find out why we need to wait 200 ms here
+    // usleep(200000);
 
-
-	// Test param read backs -- WORKS
+    /*
+    // Test param read backs -- WORKS
     int32_t mappyDot0 = 0;
 
     param_get(param_find("MPYDT_ORIEN_0"), &mappyDot0);
 
     PX4_INFO("MappyDot 0 Param Val: %d", mappyDot0);
+    */
 
-	// Check for connected rangefinders on each i2c port,
-	// starting from the base address 0x08 and counting upwards
-	for (unsigned counter = 0; counter <= MAPPYDOT_MAX_RANGEFINDERS; counter++) {
-		uint8_t sensor_address = MAPPYDOT_BASEADDR + counter;
-		set_device_address(sensor_address);
+    uint8_t sensor_address = MAPPYDOT_BASEADDR;
+    // Check for connected rangefinders on each i2c port,
+    // starting from the base address 0x08 and counting upwards
+    for (unsigned counter = 0; counter < MAPPYDOT_MAX_RANGEFINDERS; counter++) {
+        sensor_address = MAPPYDOT_BASEADDR + counter;
+        set_device_address(sensor_address);
 
-		if (probe() == 0) { /* sensor is present, store I2C address*/
-			PX4_INFO("Add sensor");
-			_sensor_addresses.push_back(sensor_address);
-		}
+        if (probe() == 0) {  // sensor is present, store I2C address
+            PX4_INFO("Add sensor");
+            _sensor_addresses[counter] = sensor_address;
+        } else {
+            PX4_INFO("No sensor found at %d", sensor_address);
+            _sensor_addresses[counter] = 0;
+        }
+    }
+
+    unsigned totalMappyDotsFound = 0;
+    for (unsigned mappyDiscovery = 0; mappyDiscovery < MAPPYDOT_MAX_RANGEFINDERS; mappyDiscovery++) {
+        if ( _sensor_addresses[mappyDiscovery] != 0) {
+            totalMappyDotsFound += 1;
+        }
+    }
+
+    PX4_INFO("Total Mappydots connected: %d", totalMappyDotsFound);
+
+	for (unsigned add_counter = 0; add_counter < totalMappyDotsFound; add_counter++) {
+		PX4_INFO("Mappydot %d with address %d added", add_counter, _sensor_addresses[add_counter]);
 	}
 
-	int addressRangeSize = _sensor_addresses.size();
 
-	PX4_INFO("Address range is %d long", addressRangeSize); // TODO: remove -- confirmed works
-
-	for (unsigned add_counter = 0; add_counter < _sensor_addresses.size(); add_counter++) {
-		PX4_INFO("Mappydot %d with address %d added", (add_counter + 1), _sensor_addresses[add_counter]);
-	}
-
-	PX4_INFO("Total Mappydots connected: %lu", _sensor_addresses.size());
-
-	// Set address back to base address
 	set_device_address(MAPPYDOT_BASEADDR);
+
+	if(I2C::init() != OK) {
+	    return ret;
+	}
 
 	// TODO: test read in the beginning
 	int mappyDotReadTest = measure();
@@ -604,7 +617,7 @@ Mappydot::start()
 	_reports->flush();
 
 	/* schedule a cycle to start things */
-	work_queue(HPWORK, &_work, (worker_t)&Mappydot::cycle_trampoline, this, 5);
+	work_queue(HPWORK, &_work, (worker_t)&Mappydot::cycle_trampoline, this, 1); // last var in work_queue was 5, not 1
 }
 
 void
