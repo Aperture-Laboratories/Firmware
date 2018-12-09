@@ -39,6 +39,7 @@
  */
 
 #include <px4_config.h>
+//#include <px4_defines.h> // Is this needed? -added
 #include <px4_getopt.h>
 #include <px4_workqueue.h>
 
@@ -59,17 +60,20 @@
 
 #include <perf/perf_counter.h>
 
+#include <parameters/param.h>
+
 #include <drivers/drv_hrt.h>
 #include <drivers/drv_range_finder.h>
 #include <drivers/device/ringbuffer.h>
 
 #include <uORB/uORB.h>
-#include <uORB/topics/obstacle_distance.h>
+#include <uORB/topics/obstacle_distance.h>  // Can we remove this safely?
+//#include <uORB/topics/distance_sensor.h>  // Added
 
 #include <board_config.h>
 
 /* Configuration Constants */
-#define MAPPYDOT_BUS_DEFAULT		PX4_I2C_BUS_EXPANSION
+#define MAPPYDOT_BUS_DEFAULT		PX4_I2C_BUS_EXPANSION2
 #define MAPPYDOT_BASEADDR 			0x08
 #define MAPPYDOT_DEVICE_PATH		 "/dev/mappydot"
 
@@ -194,7 +198,9 @@ private:
 	perf_counter_t		_sample_perf;
 	perf_counter_t		_comms_errors;
 
-	std::vector<uint8_t>	_sensor_addresses;
+	// uint8_t arraySize = 12; /** Max mappydots on single bus **/
+
+	std::vector<uint8_t> 	_sensor_addresses;
 
 	/**
 	* Test whether the device supported by the driver is present at a
@@ -224,7 +230,7 @@ private:
 	*/
 	void				cycle();
 	int 				measure();
-	int					collect();
+	int				collect();
 
 	/**
 	* Static trampoline from the workq context; because we don't have a
@@ -274,8 +280,7 @@ Mappydot::~Mappydot()
 }
 
 int
-Mappydot::init()
-{
+Mappydot::init() {
 	int ret = PX4_ERROR;
 
 	/* do I2C init (and probe) first */
@@ -298,14 +303,22 @@ Mappydot::init()
 	struct obstacle_distance_s obstacle_report = {};
 
 	_obstacle_distance_topic = orb_advertise_multi(ORB_ID(obstacle_distance), &obstacle_report,
-				   &_orb_class_instance, ORB_PRIO_LOW);
+												   &_orb_class_instance, ORB_PRIO_LOW);
 
 	if (_obstacle_distance_topic == nullptr) {
 		PX4_ERR("failed to create obstacle_distance object");
 	}
 
 	// XXX we should find out why we need to wait 200 ms here
-	//usleep(200000);
+	// usleep(200000);
+
+
+	// Test param read backs -- WORKS
+    int32_t mappyDot0 = 0;
+
+    param_get(param_find("MPYDT_ORIEN_0"), &mappyDot0);
+
+    PX4_INFO("MappyDot 0 Param Val: %d", mappyDot0);
 
 	// Check for connected rangefinders on each i2c port,
 	// starting from the base address 0x08 and counting upwards
@@ -319,13 +332,22 @@ Mappydot::init()
 		}
 	}
 
-	// TODO : loop
-	//PX4_INFO("Mappydot %d with address %d added", (counter + 1), _sensor_addresses[counter]);
+	int addressRangeSize = _sensor_addresses.size();
+
+	PX4_INFO("Address range is %d long", addressRangeSize); // TODO: remove -- confirmed works
+
+	for (unsigned add_counter = 0; add_counter < _sensor_addresses.size(); add_counter++) {
+		PX4_INFO("Mappydot %d with address %d added", (add_counter + 1), _sensor_addresses[add_counter]);
+	}
 
 	PX4_INFO("Total Mappydots connected: %lu", _sensor_addresses.size());
 
 	// Set address back to base address
 	set_device_address(MAPPYDOT_BASEADDR);
+
+	// TODO: test read in the beginning
+	int mappyDotReadTest = measure();
+	PX4_INFO("Test of address read: %d", mappyDotReadTest);
 
 	ret = OK;
 
@@ -514,6 +536,8 @@ Mappydot::measure()
 	 */
 
 	uint8_t cmd = MAPPYDOT_PERFORM_SINGLE_RANGE;
+    //PX4_INFO("about to try transfer");
+	//PX4_INFO("OK is: %d", OK);
 	ret = transfer(&cmd, 1, nullptr, 0);
 
 	if (OK != ret) {
@@ -904,6 +928,7 @@ mappydot_main(int argc, char *argv[])
 		switch (ch) {
 		case 'b':
 			i2c_bus = atoi(myoptarg);
+			//PX4_INFO("Specific I2C Bus started: %d", i2c_bus);
 			break;
 
 		case 'a':
@@ -923,14 +948,18 @@ mappydot_main(int argc, char *argv[])
 	/*
 	 * Start/load the driver.
 	 */
+	PX4_INFO("Starting Driver now");
 	if (!strcmp(argv[myoptind], "start")) {
 		if (start_all) {
+			PX4_INFO("Starting regular");
 			return mappydot::start();
 
 		} else {
+			PX4_INFO("Starting specific bus type %d", i2c_bus);
 			return mappydot::start_bus(i2c_bus);
 		}
 	}
+	PX4_INFO("Started Driver");
 
 	/*
 	 * Stop the driver

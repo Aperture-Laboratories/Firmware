@@ -30,3 +30,282 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  ****************************************************************************/
+
+
+/**
+ * Mappy Dot 0
+ *
+ * @reboot_required true
+ * @min 0
+ * @max 19
+ * @group Sensors
+ * @value 0 Disabled (?)
+ * @value 8 Address
+ * @value 9 Address
+ * @value 10 Address
+ * @value 11 Address
+ * @value 12 Address
+ * @value 13 Address
+ * @value 14 Address
+ * @value 15 Address
+ * @value 16 Address
+ * @value 17 Address
+ * @value 18 Address
+ * @value 19 Address
+ */
+PARAM_DEFINE_INT32(MPYDT_ORIEN_0, 0);
+
+
+/**
+ * Mappy Dot 1
+ *
+ * @reboot_required true
+ * @min 0
+ * @max 19
+ * @group Sensors
+ * @value 0 Disabled (?)
+ * @value 8 Address
+ * @value 9 Address
+ * @value 10 Address
+ * @value 11 Address
+ * @value 12 Address
+ * @value 13 Address
+ * @value 14 Address
+ * @value 15 Address
+ * @value 16 Address
+ * @value 17 Address
+ * @value 18 Address
+ * @value 19 Address
+ */
+
+
+PARAM_DEFINE_INT32(MPYDT_ORIEN_1, 0);
+/**
+ * Mappy Dot 2
+ *
+ * @reboot_required true
+ * @min 0
+ * @max 19
+ * @group Sensors
+ * @value 0 Disabled (?)
+ * @value 8 Address
+ * @value 9 Address
+ * @value 10 Address
+ * @value 11 Address
+ * @value 12 Address
+ * @value 13 Address
+ * @value 14 Address
+ * @value 15 Address
+ * @value 16 Address
+ * @value 17 Address
+ * @value 18 Address
+ * @value 19 Address
+ */
+PARAM_DEFINE_INT32(MPYDT_ORIEN_2, 0);
+
+/**
+ * Mappy Dot 3
+ *
+ * @reboot_required true
+ * @min 0
+ * @max 19
+ * @group Sensors
+ * @value 0 Disabled (?)
+ * @value 8 Address
+ * @value 9 Address
+ * @value 10 Address
+ * @value 11 Address
+ * @value 12 Address
+ * @value 13 Address
+ * @value 14 Address
+ * @value 15 Address
+ * @value 16 Address
+ * @value 17 Address
+ * @value 18 Address
+ * @value 19 Address
+ */
+PARAM_DEFINE_INT32(MPYDT_ORIEN_3, 0);
+
+/**
+ * Mappy Dot 4
+ *
+ * @reboot_required true
+ * @min 0
+ * @max 19
+ * @group Sensors
+ * @value 0 Disabled (?)
+ * @value 8 Address
+ * @value 9 Address
+ * @value 10 Address
+ * @value 11 Address
+ * @value 12 Address
+ * @value 13 Address
+ * @value 14 Address
+ * @value 15 Address
+ * @value 16 Address
+ * @value 17 Address
+ * @value 18 Address
+ * @value 19 Address
+ */
+PARAM_DEFINE_INT32(MPYDT_ORIEN_4, 0);
+
+/**
+ * Mappy Dot 5
+ *
+ * @reboot_required true
+ * @min 0
+ * @max 19
+ * @group Sensors
+ * @value 0 Disabled (?)
+ * @value 8 Address
+ * @value 9 Address
+ * @value 10 Address
+ * @value 11 Address
+ * @value 12 Address
+ * @value 13 Address
+ * @value 14 Address
+ * @value 15 Address
+ * @value 16 Address
+ * @value 17 Address
+ * @value 18 Address
+ * @value 19 Address
+ */
+PARAM_DEFINE_INT32(MPYDT_ORIEN_5, 0);
+
+/**
+ * Mappy Dot 6
+ *
+ * @reboot_required true
+ * @min 0
+ * @max 19
+ * @group Sensors
+ * @value 0 Disabled (?)
+ * @value 8 Address
+ * @value 9 Address
+ * @value 10 Address
+ * @value 11 Address
+ * @value 12 Address
+ * @value 13 Address
+ * @value 14 Address
+ * @value 15 Address
+ * @value 16 Address
+ * @value 17 Address
+ * @value 18 Address
+ * @value 19 Address
+ */
+PARAM_DEFINE_INT32(MPYDT_ORIEN_6, 0);
+
+/**
+ * Mappy Dot 7
+ *
+ * @reboot_required true
+ * @min 0
+ * @max 19
+ * @group Sensors
+ * @value 0 Disabled (?)
+ * @value 8 Address
+ * @value 9 Address
+ * @value 10 Address
+ * @value 11 Address
+ * @value 12 Address
+ * @value 13 Address
+ * @value 14 Address
+ * @value 15 Address
+ * @value 16 Address
+ * @value 17 Address
+ * @value 18 Address
+ * @value 19 Address
+ */
+PARAM_DEFINE_INT32(MPYDT_ORIEN_7, 0);
+
+/**
+ * Mappy Dot 8
+ *
+ * @reboot_required true
+ * @min 0
+ * @max 19
+ * @group Sensors
+ * @value 0 Disabled (?)
+ * @value 8 Address
+ * @value 9 Address
+ * @value 10 Address
+ * @value 11 Address
+ * @value 12 Address
+ * @value 13 Address
+ * @value 14 Address
+ * @value 15 Address
+ * @value 16 Address
+ * @value 17 Address
+ * @value 18 Address
+ * @value 19 Address
+ */
+PARAM_DEFINE_INT32(MPYDT_ORIEN_8, 0);
+
+/**
+ * Mappy Dot 9
+ *
+ * @reboot_required true
+ * @min 0
+ * @max 19
+ * @group Sensors
+ * @value 0 Disabled (?)
+ * @value 8 Address
+ * @value 9 Address
+ * @value 10 Address
+ * @value 11 Address
+ * @value 12 Address
+ * @value 13 Address
+ * @value 14 Address
+ * @value 15 Address
+ * @value 16 Address
+ * @value 17 Address
+ * @value 18 Address
+ * @value 19 Address
+ */
+PARAM_DEFINE_INT32(MPYDT_ORIEN_9, 0);
+
+/**
+ * Mappy Dot 10
+ *
+ * @reboot_required true
+ * @min 0
+ * @max 19
+ * @group Sensors
+ * @value 0 Disabled (?)
+ * @value 8 Address
+ * @value 9 Address
+ * @value 10 Address
+ * @value 11 Address
+ * @value 12 Address
+ * @value 13 Address
+ * @value 14 Address
+ * @value 15 Address
+ * @value 16 Address
+ * @value 17 Address
+ * @value 18 Address
+ * @value 19 Address
+ */
+PARAM_DEFINE_INT32(MPYDT_ORIEN_10, 0);
+
+/**
+ * Mappy Dot 11
+ *
+ * @reboot_required true
+ * @min 0
+ * @max 19
+ * @group Sensors
+ * @value 0 Disabled (?)
+ * @value 8 Address
+ * @value 9 Address
+ * @value 10 Address
+ * @value 11 Address
+ * @value 12 Address
+ * @value 13 Address
+ * @value 14 Address
+ * @value 15 Address
+ * @value 16 Address
+ * @value 17 Address
+ * @value 18 Address
+ * @value 19 Address
+ */
+PARAM_DEFINE_INT32(MPYDT_ORIEN_11, 0);
