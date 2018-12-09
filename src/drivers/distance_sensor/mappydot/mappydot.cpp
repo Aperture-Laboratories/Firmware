@@ -188,6 +188,7 @@ protected:
 private:
 	work_s				_work{};
 	ringbuffer::RingBuffer		*_reports;
+	bool            _sensor_ok;
 	int				_measure_ticks;
 	bool			_collect_phase;
 	int				_class_instance;
@@ -251,11 +252,12 @@ extern "C" __EXPORT int mappydot_main(int argc, char *argv[]);
 Mappydot::Mappydot(int bus, int address) :
 	I2C("Mappydot", MAPPYDOT_DEVICE_PATH, bus, address, 100000),
 	_reports(nullptr),
+	_sensor_ok(false),
 	_measure_ticks(0),
 	_collect_phase(false),
 	_class_instance(-1),
 	_orb_class_instance(-1),
-	_obstacle_distance_topic(nullptr),
+	_obstacle_distance_topic(nullptr), /* change to _distance_sensor_topic */
 	_sample_perf(perf_alloc(PC_ELAPSED, "mappydot_read")),
 	_comms_errors(perf_alloc(PC_COUNT, "mappydot_com_err"))
 {
@@ -285,7 +287,7 @@ Mappydot::init() {
     int ret = PX4_ERROR;
 
     /* do I2C init (and probe) first */
-    set_device_address(MAPPYDOT_BASEADDR);
+    // set_device_address(MAPPYDOT_BASEADDR);
 
     if (I2C::init() != OK) {
         return ret;
@@ -293,6 +295,8 @@ Mappydot::init() {
 
     /* allocate basic report buffers */
     _reports = new ringbuffer::RingBuffer(2, sizeof(obstacle_distance_s));
+
+    set_device_address(MAPPYDOT_BASEADDR);
 
     if (_reports == nullptr) {
         return ret;
@@ -311,7 +315,7 @@ Mappydot::init() {
     }
 
     // XXX we should find out why we need to wait 200 ms here
-    // usleep(200000);
+    usleep(200000);
 
     /*
     // Test param read backs -- WORKS
@@ -354,15 +358,21 @@ Mappydot::init() {
 
 	set_device_address(MAPPYDOT_BASEADDR);
 
-	if(I2C::init() != OK) {
-	    return ret;
-	}
+	//if(I2C::init() != OK) {
+	//    return ret;
+	//}
 
 	// TODO: test read in the beginning
 	int mappyDotReadTest = measure();
 	PX4_INFO("Test of address read: %d", mappyDotReadTest);
 
+    PX4_INFO("Test");
+    PX4_INFO("Test");
+    PX4_INFO("Test");
+
 	ret = OK;
+
+	_sensor_ok = true;
 
 	return ret;
 }
@@ -604,6 +614,8 @@ Mappydot::collect()
 
 	ret = OK;
 
+	//_sensor_ok = true;
+
 	perf_end(_sample_perf);
 	return ret;
 }
@@ -617,7 +629,7 @@ Mappydot::start()
 	_reports->flush();
 
 	/* schedule a cycle to start things */
-	work_queue(HPWORK, &_work, (worker_t)&Mappydot::cycle_trampoline, this, 1); // last var in work_queue was 5, not 1
+	work_queue(HPWORK, &_work, (worker_t)&Mappydot::cycle_trampoline, this, 5); // last var in work_queue was 5, not 1
 }
 
 void
