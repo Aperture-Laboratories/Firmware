@@ -67,8 +67,8 @@
 #include <drivers/device/ringbuffer.h>
 
 #include <uORB/uORB.h>
-#include <uORB/topics/obstacle_distance.h>  // Can we remove this safely?
-//#include <uORB/topics/distance_sensor.h>  // Added
+//#include <uORB/topics/obstacle_distance.h>  // Can we remove this safely?
+#include <uORB/topics/distance_sensor.h>  // Added
 
 #include <board_config.h>
 
@@ -194,7 +194,7 @@ private:
 	int				_class_instance;
 	int				_orb_class_instance;
 
-	orb_advert_t		_obstacle_distance_topic;
+	orb_advert_t		_distance_sensor_topic;
 
 	perf_counter_t		_sample_perf;
 	perf_counter_t		_comms_errors;
@@ -257,7 +257,7 @@ Mappydot::Mappydot(int bus, int address) :
 	_collect_phase(false),
 	_class_instance(-1),
 	_orb_class_instance(-1),
-	_obstacle_distance_topic(nullptr), /* change to _distance_sensor_topic */
+	_distance_sensor_topic(nullptr), /* change to _distance_sensor_topic */
 	_sample_perf(perf_alloc(PC_ELAPSED, "mappydot_read")),
 	_comms_errors(perf_alloc(PC_COUNT, "mappydot_com_err"))
 {
@@ -294,7 +294,7 @@ Mappydot::init() {
     }
 
     /* allocate basic report buffers */
-    _reports = new ringbuffer::RingBuffer(2, sizeof(obstacle_distance_s));
+    _reports = new ringbuffer::RingBuffer(2, sizeof(distance_sensor_s));
 
     set_device_address(MAPPYDOT_BASEADDR);
 
@@ -305,13 +305,13 @@ Mappydot::init() {
     _class_instance = register_class_devname(RANGE_FINDER_BASE_DEVICE_PATH); // TODO
 
     /* get a publish handle on the obstacle distance topic */
-    struct obstacle_distance_s obstacle_report = {};
+    struct distance_sensor_s distance_sensor_report = {};
 
-    _obstacle_distance_topic = orb_advertise_multi(ORB_ID(obstacle_distance), &obstacle_report,
+    _distance_sensor_topic = orb_advertise_multi(ORB_ID(distance_sensor), &distance_sensor_report,
                                                    &_orb_class_instance, ORB_PRIO_LOW);
 
-    if (_obstacle_distance_topic == nullptr) {
-        PX4_ERR("failed to create obstacle_distance object");
+    if (_distance_sensor_topic == nullptr) {
+        PX4_ERR("failed to create distance_sensor object");
     }
 
     // XXX we should find out why we need to wait 200 ms here
@@ -487,8 +487,8 @@ ssize_t
 Mappydot::read(device::file_t *filp, char *buffer, size_t buflen)
 {
 
-	unsigned count = buflen / sizeof(struct obstacle_distance_s);
-	struct obstacle_distance_s *rbuf = reinterpret_cast<struct obstacle_distance_s *>(buffer);
+	unsigned count = buflen / sizeof(struct distance_sensor_s);
+	struct distance_sensor_s *rbuf = reinterpret_cast<struct distance_sensor_s *>(buffer);
 	int ret = 0;
 
 	/* buffer must be large enough */
@@ -595,16 +595,18 @@ Mappydot::collect()
 
 	uint16_t distance_mm = val[0] << 8 | val[1];
 
-	struct obstacle_distance_s report {};
+	struct distance_sensor_s report;
 
 	report.timestamp = hrt_absolute_time();
-	report.distances[0] = distance_mm / 10;
+	report.type = distance_sensor_s::MAV_DISTANCE_SENSOR_INFRARED;
+	report.current_distance = distance_mm / 10;
 	report.min_distance = MAPPYDOT_MIN_DISTANCE;
 	report.max_distance = MAPPYDOT_MAX_DISTANCE;
+	report.id = 0; //does this need to be different based on mappydot/sensor?
 
 	/* publish it, if we are the primary */
-	if (_obstacle_distance_topic != nullptr) {
-		orb_publish(ORB_ID(obstacle_distance), _obstacle_distance_topic, &report);
+	if (_distance_sensor_topic != nullptr) {
+		orb_publish(ORB_ID(distance_sensor), _distance_sensor_topic, &report);
 	}
 
 	_reports->force(&report);
@@ -675,6 +677,8 @@ Mappydot::cycle()
 			return;
 		}
 	}
+
+	// TODO: Do we need to add address cycling here for reporting to topic purposes?
 
 	/* next phase is collection */
 	_collect_phase = true;
@@ -819,7 +823,7 @@ stop()
 int
 test()
 {
-	struct obstacle_distance_s report;
+	struct distance_sensor_s report;
 	ssize_t sz;
 	int ret;
 
