@@ -199,10 +199,7 @@ private:
 	perf_counter_t		_sample_perf;
 	perf_counter_t		_comms_errors;
 
-	// uint8_t arraySize = 12; /** Max mappydots on single bus **/
-
 	std::vector<uint8_t> 	_sensor_addresses;
-    //std::uint8_t _sensor_addresses[MAPPYDOT_MAX_RANGEFINDERS];
 
 	/**
 	* Test whether the device supported by the driver is present at a
@@ -232,7 +229,7 @@ private:
 	*/
 	void				cycle();
 	int 				measure();
-	int				collect();
+	int				    collect();
 
 	/**
 	* Static trampoline from the workq context; because we don't have a
@@ -526,28 +523,27 @@ Mappydot::read(device::file_t *filp, char *buffer, size_t buflen)
 
 	/* manual measurement - run one conversion */
 	do {
-		_reports->flush();
+        _reports->flush();
 
-		/* trigger a measurement */
-		if (OK != measure()) {
-			ret = -EIO;
-			break;
-		}
+        /* trigger a measurement */
+        if (OK != measure()) {
+            ret = -EIO;
+            break;
+        }
 
-		/* wait for it to complete */
-		usleep(MAPPYDOT_CONVERSION_INTERVAL * 2);
+        /* wait for it to complete */
+        usleep(MAPPYDOT_CONVERSION_INTERVAL * 2);
 
-		/* run the collection phase */
-		if (OK != collect()) {
-			ret = -EIO;
-			break;
-		}
+        /* run the collection phase */
+        if (OK != collect()) {
+            ret = -EIO;
+            break;
+        }
 
-		/* state machine will have generated a report, copy it out */
-		if (_reports->get(rbuf)) {
-			ret = sizeof(*rbuf);
-		}
-
+        /* state machine will have generated a report, copy it out */
+        if (_reports->get(rbuf)) {
+            ret = sizeof(*rbuf);
+        }
 	} while (0);
 
 	return ret;
@@ -559,22 +555,22 @@ Mappydot::measure()
 
 	int ret;
 
-	/*
-	 * Send the command to take a measurement.
-	 uint8_t cmd[2];
-	 cmd[0] = 0x00;
-	 cmd[1] = SRF02_TAKE_RANGE_REG;
-	 ret = transfer(cmd, 2, nullptr, 0);
-	 */
+    /*
+     * Send the command to take a measurement.
+     uint8_t cmd[2];
+     cmd[0] = 0x00;
+     cmd[1] = SRF02_TAKE_RANGE_REG;
+     ret = transfer(cmd, 2, nullptr, 0);
+     */
 
-	uint8_t cmd = MAPPYDOT_PERFORM_SINGLE_RANGE;
-	ret = transfer(&cmd, 1, nullptr, 0);
+    uint8_t cmd = MAPPYDOT_PERFORM_SINGLE_RANGE;
+    ret = transfer(&cmd, 1, nullptr, 0);
 
-	if (OK != ret) {
-		perf_count(_comms_errors);
-		PX4_INFO("i2c::transfer returned %d", ret);
-		return ret;
-	}
+    if (OK != ret) {
+        perf_count(_comms_errors);
+        PX4_INFO("i2c::transfer returned %d", ret);
+        return ret;
+    }
 
 	ret = OK;
 
@@ -582,16 +578,21 @@ Mappydot::measure()
 }
 
 int
-Mappydot::collect()
-{
-	int	ret = -EIO;
-	for(unsigned map_count = 0; map_count < _sensor_addresses.size(); map_count++) {
-        set_device_address(_sensor_addresses[map_count]);
-        /* read from the sensor */
-        uint8_t val[2] = {0, 0};
+Mappydot::collect() {
+    int ret = -EIO;
 
-        perf_begin(_sample_perf);
 
+    //set_device_address(_sensor_addresses[mappy_address]);
+    /* read from the sensor */
+    uint8_t val[2] = {0, 0};
+
+    perf_begin(_sample_perf);
+
+    struct distance_sensor_s reports[_sensor_addresses.size()];
+
+    for (unsigned mappy_address = 0; mappy_address < _sensor_addresses.size(); mappy_address++) {
+        set_device_address(_sensor_addresses[mappy_address]);
+        //usleep(50000);
         ret = transfer(nullptr, 0, &val[0], 2);
 
         if (ret < 0) {
@@ -603,26 +604,27 @@ Mappydot::collect()
 
         uint16_t distance_mm = val[0] << 8 | val[1];
 
-        struct distance_sensor_s report;
+        //struct distance_sensor_s report;
 
-        report.timestamp = hrt_absolute_time();
-        report.type = distance_sensor_s::MAV_DISTANCE_SENSOR_INFRARED;
-        report.current_distance = distance_mm / 10;
-        report.min_distance = MAPPYDOT_MIN_DISTANCE;
-        report.max_distance = MAPPYDOT_MAX_DISTANCE;
-        report.id = map_count; // used to be 0
-
+        reports[mappy_address].timestamp = hrt_absolute_time();
+        reports[mappy_address].type = distance_sensor_s::MAV_DISTANCE_SENSOR_LASER;  //INFRARED DIDNT WORK WITH MAVROS?
+        reports[mappy_address].current_distance = distance_mm / 10;
+        reports[mappy_address].min_distance = MAPPYDOT_MIN_DISTANCE;
+        reports[mappy_address].max_distance = MAPPYDOT_MAX_DISTANCE;
+        // add report.covariance
+        // report.signal_quality
+        // report.orientation
+        reports[mappy_address].id = get_device_address(); // used to be 0
 
         /* publish it, if we are the primary */
         if (_distance_sensor_topic != nullptr) {
-            orb_publish(ORB_ID(distance_sensor), _distance_sensor_topic, &report);
+            orb_publish(ORB_ID(distance_sensor), _distance_sensor_topic, &reports[mappy_address]);
         }
 
-        _reports->force(&report);
+        _reports->force(&reports[mappy_address]);
 
-        /* notify anyone waiting for data */
-        poll_notify(POLLIN);
-
+		/* notify anyone waiting for data */
+		poll_notify(POLLIN);
     }
 
 	ret = OK;
@@ -658,46 +660,46 @@ Mappydot::cycle_trampoline(void *arg)
 	Mappydot *dev = (Mappydot *)arg;
 
 	dev->cycle();
-
 }
 
 void
 Mappydot::cycle()
 {
-	if (_collect_phase) {
 
-		/* perform collection */
-		if (OK != collect()) {
-			PX4_INFO("collection error");
-			/* if error restart the measurement state machine */
-			start();
-			return;
-		}
+    if (_collect_phase) {
 
-		/* next phase is measurement */
-		_collect_phase = false;
+        /* perform collection */
+        if (OK != collect()) {
+            PX4_INFO("collection error");
+            /* if error restart the measurement state machine */
+            start();
+            return;
+        }
 
-		if (_measure_ticks > USEC2TICK(MAPPYDOT_CONVERSION_INTERVAL)) {
+        /* next phase is measurement */
+        _collect_phase = false;
 
-			/* schedule a fresh cycle call when we are ready to measure again */
-			work_queue(HPWORK,
-				   &_work,
-				   (worker_t)&Mappydot::cycle_trampoline,
-				   this,
-				   _measure_ticks - USEC2TICK(MAPPYDOT_CONVERSION_INTERVAL));
-			return;
-		}
-	}
+        if (_measure_ticks > USEC2TICK(MAPPYDOT_CONVERSION_INTERVAL)) {
 
-	/* next phase is collection */
-	_collect_phase = true;
+            /* schedule a fresh cycle call when we are ready to measure again */
+            work_queue(HPWORK,
+                       &_work,
+                       (worker_t) & Mappydot::cycle_trampoline,
+                       this,
+                       _measure_ticks - USEC2TICK(MAPPYDOT_CONVERSION_INTERVAL));
+            return;
+        }
+    }
 
-	/* schedule a fresh cycle call when the measurement is done */
-	work_queue(HPWORK,
-		   &_work,
-		   (worker_t)&Mappydot::cycle_trampoline,
-		   this,
-		   USEC2TICK(MAPPYDOT_CONVERSION_INTERVAL));
+    /* next phase is collection */
+    _collect_phase = true;
+
+    /* schedule a fresh cycle call when the measurement is done */
+    work_queue(HPWORK,
+               &_work,
+               (worker_t) & Mappydot::cycle_trampoline,
+               this,
+               USEC2TICK(MAPPYDOT_CONVERSION_INTERVAL));
 
 }
 
