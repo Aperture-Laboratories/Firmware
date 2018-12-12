@@ -355,20 +355,24 @@ Mappydot::init() {
 		PX4_INFO("Mappydot %d with address %d added", add_counter, _sensor_addresses[add_counter]);
 	}
 
-
 	set_device_address(MAPPYDOT_BASEADDR);
 
-	//if(I2C::init() != OK) {
-	//    return ret;
-	//}
-
 	// TODO: test read in the beginning
-	int mappyDotReadTest = measure();
-	PX4_INFO("Test of address read: %d", mappyDotReadTest);
+    //struct distance_sensor_s report;
+    //ssize_t sz;
 
-    PX4_INFO("Test");
-    PX4_INFO("Test");
-    PX4_INFO("Test");
+    //int fd = px4_open(MAPPYDOT_DEVICE_PATH, O_RDONLY);
+
+    //if (fd < 0) {
+    //    PX4_ERR("%s open failed (try 'mappydot start' if the driver is not running)", MAPPYDOT_DEVICE_PATH);
+    //    return PX4_ERROR;
+    //}
+
+    /* do a simple demand read */
+    //sz = read(fd, &report, sizeof(report));
+
+	//int mappyDotReadTest = measure();
+	//PX4_INFO("Test of address read: %d", mappyDotReadTest);
 
 	ret = OK;
 
@@ -559,8 +563,6 @@ Mappydot::measure()
 	 */
 
 	uint8_t cmd = MAPPYDOT_PERFORM_SINGLE_RANGE;
-    //PX4_INFO("about to try transfer");
-	//PX4_INFO("OK is: %d", OK);
 	ret = transfer(&cmd, 1, nullptr, 0);
 
 	if (OK != ret) {
@@ -602,7 +604,9 @@ Mappydot::collect()
 	report.current_distance = distance_mm / 10;
 	report.min_distance = MAPPYDOT_MIN_DISTANCE;
 	report.max_distance = MAPPYDOT_MAX_DISTANCE;
-	report.id = 0; //does this need to be different based on mappydot/sensor?
+	report.id = 0;
+
+    // TODO: Review publishing below
 
 	/* publish it, if we are the primary */
 	if (_distance_sensor_topic != nullptr) {
@@ -631,7 +635,7 @@ Mappydot::start()
 	_reports->flush();
 
 	/* schedule a cycle to start things */
-	work_queue(HPWORK, &_work, (worker_t)&Mappydot::cycle_trampoline, this, 5); // last var in work_queue was 5, not 1
+	work_queue(HPWORK, &_work, (worker_t)&Mappydot::cycle_trampoline, this, 2); // last var in work_queue was 5, not 1
 }
 
 void
@@ -643,7 +647,7 @@ Mappydot::stop()
 void
 Mappydot::cycle_trampoline(void *arg)
 {
-
+    //TODO: Add loop and array of mappydot objects here?
 	Mappydot *dev = (Mappydot *)arg;
 
 	dev->cycle();
@@ -678,8 +682,6 @@ Mappydot::cycle()
 		}
 	}
 
-	// TODO: Do we need to add address cycling here for reporting to topic purposes?
-
 	/* next phase is collection */
 	_collect_phase = true;
 
@@ -708,6 +710,7 @@ namespace mappydot
 {
 
 Mappydot	*g_dev;
+//Mappydot    *g_dev2;
 
 int 	start();
 int 	start_bus(int i2c_bus);
@@ -760,6 +763,7 @@ start_bus(int i2c_bus)
 
 	/* create the driver */
 	g_dev = new Mappydot(i2c_bus);
+	//g_dev2 = new Mappydot(i2c_bus, 0x09);  // TODO: remove this, didn't do anything and hard setting addresses isn't ideal
 
 	if (g_dev == nullptr) {
 		goto fail;
