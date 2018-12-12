@@ -201,8 +201,8 @@ private:
 
 	// uint8_t arraySize = 12; /** Max mappydots on single bus **/
 
-	//std::vector<uint8_t> 	_sensor_addresses;
-    std::uint8_t _sensor_addresses[MAPPYDOT_MAX_RANGEFINDERS];
+	std::vector<uint8_t> 	_sensor_addresses;
+    //std::uint8_t _sensor_addresses[MAPPYDOT_MAX_RANGEFINDERS];
 
 	/**
 	* Test whether the device supported by the driver is present at a
@@ -302,7 +302,7 @@ Mappydot::init() {
         return ret;
     }
 
-    _class_instance = register_class_devname(RANGE_FINDER_BASE_DEVICE_PATH); // TODO
+    _class_instance = register_class_devname(RANGE_FINDER_BASE_DEVICE_PATH);
 
     /* get a publish handle on the obstacle distance topic */
     struct distance_sensor_s distance_sensor_report = {};
@@ -329,6 +329,17 @@ Mappydot::init() {
     uint8_t sensor_address = MAPPYDOT_BASEADDR;
     // Check for connected rangefinders on each i2c port,
     // starting from the base address 0x08 and counting upwards
+    for (unsigned counter = 0; counter <= MAPPYDOT_MAX_RANGEFINDERS; counter++) {
+        sensor_address = MAPPYDOT_BASEADDR + counter;
+        set_device_address(sensor_address);
+
+        if (probe() == 0) { /* sensor is present, store I2C address*/
+            PX4_INFO("Add sensor");
+            _sensor_addresses.push_back(sensor_address);
+        }
+    }
+
+    /*
     for (unsigned counter = 0; counter < MAPPYDOT_MAX_RANGEFINDERS; counter++) {
         sensor_address = MAPPYDOT_BASEADDR + counter;
         set_device_address(sensor_address);
@@ -341,17 +352,11 @@ Mappydot::init() {
             _sensor_addresses[counter] = 0;
         }
     }
+    */
 
-    unsigned totalMappyDotsFound = 0;
-    for (unsigned mappyDiscovery = 0; mappyDiscovery < MAPPYDOT_MAX_RANGEFINDERS; mappyDiscovery++) {
-        if ( _sensor_addresses[mappyDiscovery] != 0) {
-            totalMappyDotsFound += 1;
-        }
-    }
+    PX4_INFO("Total Mappydots connected: %d", _sensor_addresses.size());
 
-    PX4_INFO("Total Mappydots connected: %d", totalMappyDotsFound);
-
-	for (unsigned add_counter = 0; add_counter < totalMappyDotsFound; add_counter++) {
+	for (unsigned add_counter = 0; add_counter < _sensor_addresses.size(); add_counter++) {
 		PX4_INFO("Mappydot %d with address %d added", add_counter, _sensor_addresses[add_counter]);
 	}
 
@@ -580,43 +585,45 @@ int
 Mappydot::collect()
 {
 	int	ret = -EIO;
+	for(unsigned map_count = 0; map_count < _sensor_addresses.size(); map_count++) {
+        set_device_address(_sensor_addresses[map_count]);
+        /* read from the sensor */
+        uint8_t val[2] = {0, 0};
 
-	/* read from the sensor */
-	uint8_t val[2] = {0, 0};
+        perf_begin(_sample_perf);
 
-	perf_begin(_sample_perf);
+        ret = transfer(nullptr, 0, &val[0], 2);
 
-	ret = transfer(nullptr, 0, &val[0], 2);
+        if (ret < 0) {
+            PX4_INFO("error reading from sensor: %d", ret);
+            perf_count(_comms_errors);
+            perf_end(_sample_perf);
+            return ret;
+        }
 
-	if (ret < 0) {
-		PX4_INFO("error reading from sensor: %d", ret);
-		perf_count(_comms_errors);
-		perf_end(_sample_perf);
-		return ret;
-	}
+        uint16_t distance_mm = val[0] << 8 | val[1];
 
-	uint16_t distance_mm = val[0] << 8 | val[1];
+        struct distance_sensor_s report;
 
-	struct distance_sensor_s report;
+        report.timestamp = hrt_absolute_time();
+        report.type = distance_sensor_s::MAV_DISTANCE_SENSOR_INFRARED;
+        report.current_distance = distance_mm / 10;
+        report.min_distance = MAPPYDOT_MIN_DISTANCE;
+        report.max_distance = MAPPYDOT_MAX_DISTANCE;
+        report.id = map_count; // used to be 0
 
-	report.timestamp = hrt_absolute_time();
-	report.type = distance_sensor_s::MAV_DISTANCE_SENSOR_INFRARED;
-	report.current_distance = distance_mm / 10;
-	report.min_distance = MAPPYDOT_MIN_DISTANCE;
-	report.max_distance = MAPPYDOT_MAX_DISTANCE;
-	report.id = 0;
 
-    // TODO: Review publishing below
+        /* publish it, if we are the primary */
+        if (_distance_sensor_topic != nullptr) {
+            orb_publish(ORB_ID(distance_sensor), _distance_sensor_topic, &report);
+        }
 
-	/* publish it, if we are the primary */
-	if (_distance_sensor_topic != nullptr) {
-		orb_publish(ORB_ID(distance_sensor), _distance_sensor_topic, &report);
-	}
+        _reports->force(&report);
 
-	_reports->force(&report);
+        /* notify anyone waiting for data */
+        poll_notify(POLLIN);
 
-	/* notify anyone waiting for data */
-	poll_notify(POLLIN);
+    }
 
 	ret = OK;
 
@@ -635,7 +642,7 @@ Mappydot::start()
 	_reports->flush();
 
 	/* schedule a cycle to start things */
-	work_queue(HPWORK, &_work, (worker_t)&Mappydot::cycle_trampoline, this, 2); // last var in work_queue was 5, not 1
+	work_queue(HPWORK, &_work, (worker_t)&Mappydot::cycle_trampoline, this, 1); // last var in work_queue was 5, not 1
 }
 
 void
