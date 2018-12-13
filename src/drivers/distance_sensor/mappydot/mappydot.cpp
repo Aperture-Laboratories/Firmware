@@ -39,7 +39,6 @@
  */
 
 #include <px4_config.h>
-//#include <px4_defines.h> // Is this needed? -added
 #include <px4_getopt.h>
 #include <px4_workqueue.h>
 
@@ -67,8 +66,7 @@
 #include <drivers/device/ringbuffer.h>
 
 #include <uORB/uORB.h>
-//#include <uORB/topics/obstacle_distance.h>  // Can we remove this safely?
-#include <uORB/topics/distance_sensor.h>  // Added
+#include <uORB/topics/distance_sensor.h>
 
 #include <board_config.h>
 
@@ -283,9 +281,6 @@ int
 Mappydot::init() {
     int ret = PX4_ERROR;
 
-    /* do I2C init (and probe) first */
-    // set_device_address(MAPPYDOT_BASEADDR);
-
     if (I2C::init() != OK) {
         return ret;
     }
@@ -314,15 +309,6 @@ Mappydot::init() {
     // XXX we should find out why we need to wait 200 ms here
     usleep(200000);
 
-    /*
-    // Test param read backs -- WORKS
-    int32_t mappyDot0 = 0;
-
-    param_get(param_find("MPYDT_ORIEN_0"), &mappyDot0);
-
-    PX4_INFO("MappyDot 0 Param Val: %d", mappyDot0);
-    */
-
     uint8_t sensor_address = MAPPYDOT_BASEADDR;
     // Check for connected rangefinders on each i2c port,
     // starting from the base address 0x08 and counting upwards
@@ -336,21 +322,6 @@ Mappydot::init() {
         }
     }
 
-    /*
-    for (unsigned counter = 0; counter < MAPPYDOT_MAX_RANGEFINDERS; counter++) {
-        sensor_address = MAPPYDOT_BASEADDR + counter;
-        set_device_address(sensor_address);
-
-        if (probe() == 0) {  // sensor is present, store I2C address
-            PX4_INFO("Add sensor");
-            _sensor_addresses[counter] = sensor_address;
-        } else {
-            PX4_INFO("No sensor found at %d", sensor_address);
-            _sensor_addresses[counter] = 0;
-        }
-    }
-    */
-
     PX4_INFO("Total Mappydots connected: %d", _sensor_addresses.size());
 
 	for (unsigned add_counter = 0; add_counter < _sensor_addresses.size(); add_counter++) {
@@ -358,23 +329,6 @@ Mappydot::init() {
 	}
 
 	set_device_address(MAPPYDOT_BASEADDR);
-
-	// TODO: test read in the beginning
-    //struct distance_sensor_s report;
-    //ssize_t sz;
-
-    //int fd = px4_open(MAPPYDOT_DEVICE_PATH, O_RDONLY);
-
-    //if (fd < 0) {
-    //    PX4_ERR("%s open failed (try 'mappydot start' if the driver is not running)", MAPPYDOT_DEVICE_PATH);
-    //    return PX4_ERROR;
-    //}
-
-    /* do a simple demand read */
-    //sz = read(fd, &report, sizeof(report));
-
-	//int mappyDotReadTest = measure();
-	//PX4_INFO("Test of address read: %d", mappyDotReadTest);
 
 	ret = OK;
 
@@ -555,14 +509,6 @@ Mappydot::measure()
 
 	int ret;
 
-    /*
-     * Send the command to take a measurement.
-     uint8_t cmd[2];
-     cmd[0] = 0x00;
-     cmd[1] = SRF02_TAKE_RANGE_REG;
-     ret = transfer(cmd, 2, nullptr, 0);
-     */
-
     uint8_t cmd = MAPPYDOT_PERFORM_SINGLE_RANGE;
     ret = transfer(&cmd, 1, nullptr, 0);
 
@@ -588,11 +534,13 @@ Mappydot::collect() {
 
     perf_begin(_sample_perf);
 
-    struct distance_sensor_s reports[_sensor_addresses.size()];
+    //struct distance_sensor_s reports[_sensor_addresses.size()];
 
     for (unsigned mappy_address = 0; mappy_address < _sensor_addresses.size(); mappy_address++) {
         set_device_address(_sensor_addresses[mappy_address]);
-        //usleep(50000);
+
+        usleep(50000);
+
         ret = transfer(nullptr, 0, &val[0], 2);
 
         if (ret < 0) {
@@ -604,32 +552,30 @@ Mappydot::collect() {
 
         uint16_t distance_mm = val[0] << 8 | val[1];
 
-        //struct distance_sensor_s report;
+        struct distance_sensor_s report;
 
-        reports[mappy_address].timestamp = hrt_absolute_time();
-        reports[mappy_address].type = distance_sensor_s::MAV_DISTANCE_SENSOR_LASER;  //INFRARED DIDNT WORK WITH MAVROS?
-        reports[mappy_address].current_distance = distance_mm / 10;
-        reports[mappy_address].min_distance = MAPPYDOT_MIN_DISTANCE;
-        reports[mappy_address].max_distance = MAPPYDOT_MAX_DISTANCE;
-        // add report.covariance
-        // report.signal_quality
-        // report.orientation
-        reports[mappy_address].id = get_device_address(); // used to be 0
+        report.timestamp = hrt_absolute_time();
+        report.type = distance_sensor_s::MAV_DISTANCE_SENSOR_LASER;  //INFRARED DIDNT WORK WITH MAVROS?
+        report.current_distance = distance_mm / 10;
+        report.min_distance = MAPPYDOT_MIN_DISTANCE;
+        report.max_distance = MAPPYDOT_MAX_DISTANCE;
+        report.covariance = 0;
+        report.signal_quality = 0;
+        report.orientation = 0;
+        report.id = get_device_address(); // used to be 0
 
         /* publish it, if we are the primary */
         if (_distance_sensor_topic != nullptr) {
-            orb_publish(ORB_ID(distance_sensor), _distance_sensor_topic, &reports[mappy_address]);
+            orb_publish(ORB_ID(distance_sensor), _distance_sensor_topic, &report);
         }
 
-        _reports->force(&reports[mappy_address]);
+        _reports->force(&report);
 
 		/* notify anyone waiting for data */
 		poll_notify(POLLIN);
     }
 
 	ret = OK;
-
-	//_sensor_ok = true;
 
 	perf_end(_sample_perf);
 	return ret;
@@ -656,7 +602,6 @@ Mappydot::stop()
 void
 Mappydot::cycle_trampoline(void *arg)
 {
-    //TODO: Add loop and array of mappydot objects here?
 	Mappydot *dev = (Mappydot *)arg;
 
 	dev->cycle();
@@ -665,7 +610,6 @@ Mappydot::cycle_trampoline(void *arg)
 void
 Mappydot::cycle()
 {
-
     if (_collect_phase) {
 
         /* perform collection */
@@ -719,7 +663,6 @@ namespace mappydot
 {
 
 Mappydot	*g_dev;
-//Mappydot    *g_dev2;
 
 int 	start();
 int 	start_bus(int i2c_bus);
@@ -772,7 +715,6 @@ start_bus(int i2c_bus)
 
 	/* create the driver */
 	g_dev = new Mappydot(i2c_bus);
-	//g_dev2 = new Mappydot(i2c_bus, 0x09);  // TODO: remove this, didn't do anything and hard setting addresses isn't ideal
 
 	if (g_dev == nullptr) {
 		goto fail;
